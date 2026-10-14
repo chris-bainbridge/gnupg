@@ -524,9 +524,19 @@ map_host (ctrl_t ctrl, const char *name, const char *srvtag, int force_reselect,
       err = get_dns_srv (ctrl, name, srvtag, NULL, &srvs, &srvscount);
       if (err)
         {
-          if (gpg_err_code (err) == GPG_ERR_ECONNREFUSED)
-            tor_not_running_p (ctrl);
-          return err;
+          /* Ignore a server failure (SERVFAIL) because there are too
+           * many resolvers which do not work as expected; they may
+           * answer SERVFAIL instead of NXDOMAIN even for a
+           * non-existing name.  The SRV lookup is only an
+           * optimization, thus we continue with the regular name
+           * resolution below (srvscount is 0).  */
+          if (gpg_err_code (err) != GPG_ERR_SERVER_FAILED)
+            {
+              if (gpg_err_code (err) == GPG_ERR_ECONNREFUSED)
+                tor_not_running_p (ctrl);
+              return err;
+            }
+          err = 0;
         }
 
       if (srvscount > 0)
